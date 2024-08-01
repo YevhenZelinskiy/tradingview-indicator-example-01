@@ -1,0 +1,567 @@
+//@version=5
+indicator(title='Scalp Indicator V8', shorttitle='Scalp Indi V8', overlay=true, precision=6, max_labels_count=500, max_lines_count=500)
+
+//len                        = input.int(10, minval=1, title="Length")
+src                          = close
+
+inp_ema                      = input.int(9, minval=1, title="Input_Regular EMA")
+inp_emaHTF                   = input.int(9, minval=1, title="Input_EMA_HTF")
+
+// Average Fractals 
+LookBack                     = input.int(5, minval=1, maxval=10)
+ShMid                        = input.bool(true, title = "Show Midline?")
+ShFL                         = input.bool(true, title = "Show Fractal lines?")
+ShKelt                       = input.bool(true, title = "Show Keltner Channels?")
+
+showAtrBands                 = input.bool(false, title = "Show ATR bands?")
+showHtfEMA                   = input.bool(false, title = "Show showHtfEMA?")
+showRegularEMA               = input.bool(false, title = "Show regular EMA?")
+showDash                     = input.bool(false, title = "Show dashboard?")
+
+// INPUTS OTHER SYMBOLS
+rsi_len                      = input.int(  14, title = "RSI Length",     group = "Indicators")
+rsi_os                       = input.float(30, title = "RSI Overbought", group = "Indicators")
+rsi_ob                       = input.float(70, title = "RSI Oversold",   group = "Indicators")
+
+// TSI
+tsi_long_len                 = input.int(   25, title = "TSI Long Length",   group = "Indicators")
+tsi_shrt_len                 = input.int(   13, title = "TSI Short Length",  group = "Indicators")
+tsi_ob                       = input.float( 30, title = "TSI Overbought",    group = 'Indicators')
+tsi_os                       = input.float(-30, title = "TSI Oversold",      group = 'Indicators')
+
+// ADX Params
+adx_smooth                   = input.int(  14, title = "ADX Smoothing",     group = 'Indicators')
+adx_dilen                    = input.int(  14, title = "ADX DI Length",     group = 'Indicators')
+adx_level                    = input.float(40, title = "ADX Level",         group = 'Indicators')
+
+// SuperTrend
+sup_atr_len                  = input.int(   10, "Supertrend ATR Length", group = 'Indicators')
+sup_factor                   = input.float(3.0, "Supertrend Factor",     group = 'Indicators')
+
+// SYMBOLS // 
+u01                          = input.bool(true,  title = "", group = 'Symbols', inline = 's01')
+u02                          = input.bool(true,  title = "", group = 'Symbols', inline = 's02')
+u03                          = input.bool(true,  title = "", group = 'Symbols', inline = 's03')
+u04                          = input.bool(true,  title = "", group = 'Symbols', inline = 's04')
+u05                          = input.bool(true,  title = "", group = 'Symbols', inline = 's05')
+u06                          = input.bool(true,  title = "", group = 'Symbols', inline = 's06')
+u07                          = input.bool(true,  title = "", group = 'Symbols', inline = 's07')
+u08                          = input.bool(true,  title = "", group = 'Symbols', inline = 's08')
+u09                          = input.bool(true,  title = "", group = 'Symbols', inline = 's09')
+u10                          = input.bool(true,  title = "", group = 'Symbols', inline = 's10')
+
+s01                          = input.symbol('BTCBUSDPERP',  group = 'Symbols', inline = 's01')
+s02                          = input.symbol('BTCUSDT',  group = 'Symbols', inline = 's02')
+s03                          = input.symbol('DOGEUSDT', group = 'Symbols', inline = 's03')
+s04                          = input.symbol('BNBUSDT',  group = 'Symbols', inline = 's04')
+s05                          = input.symbol('ETHUSDT',  group = 'Symbols', inline = 's05')
+s06                          = input.symbol('ADAUSDT',  group = 'Symbols', inline = 's06')
+s07                          = input.symbol('XRPBTC',   group = 'Symbols', inline = 's07')
+s08                          = input.symbol('DOGEBTC',  group = 'Symbols', inline = 's08')
+s09                          = input.symbol('TRXUSDT',  group = 'Symbols', inline = 's09')
+s10                          = input.symbol('BTCBUSD',  group = 'Symbols', inline = 's10')
+
+// 
+// **** Higer timeframes inputs
+// 
+var string HTF_EMA = " Higer timeframes inputs"
+
+res1                         = input.timeframe(title='Higher Timeframe Resolution 2', defval='1', group = HTF_EMA)
+res2                         = input.timeframe(title='Higher Timeframe Resolution 2', defval='5', group = HTF_EMA)
+res3                         = input.timeframe(title='Higher Timeframe Resolution 3', defval='15', group = HTF_EMA)
+
+res_HTF_EMA                  = input.timeframe(title='EMA Higher Timeframe Resolution', defval='1', group = HTF_EMA)
+len_HTF_EMA                  = input(title='EMA Higher Timeframe Length 2', defval=7, group = HTF_EMA)
+col_HTF_EMA                  = input(title='EMA Color', defval=true, group = HTF_EMA)
+
+res_HTF_EMA5                 = input.timeframe(title='EMA Higher Timeframe Resolution 5min', defval='5', group = HTF_EMA)
+len_HTF_EMA5                 = input(title='EMA Higher Timeframe Length 5min', defval=7, group = HTF_EMA)
+col_HTF_EMA5                 = input(title='EMA Color 5min', defval=true, group = HTF_EMA)
+
+res_HTF_EMA15                = input.timeframe(title='EMA Higher Timeframe Resolution 15min', defval='15', group = HTF_EMA)
+len_HTF_EMA15                = input(title='EMA Higher Timeframe Length 15min', defval=7, group = HTF_EMA)
+col_HTF_EMA15                = input(title='EMA Color 15min', defval=true, group = HTF_EMA)
+
+// ADX
+lenDMI                       = input.int(14, minval=1, title='ADX DI Length')
+lensigDMI                    = input.int(14, title='ADX Smoothing', minval=1, maxval=50)
+adxThreshold                 = input(title='ADX Threshold', defval=30)
+
+// 
+// **** definition indicators
+// 
+
+ema                          = ta.ema(src, inp_ema)
+rsi                          = ta.rsi(src, 2)
+rsiMA                        = ta.sma(rsi, 8)
+atr                          = ta.atr(14)
+vol                          = volume
+maVol                        = ta.ema(vol, 20)
+
+// 
+// **** CALCULATIONS ROUND 1
+// 
+
+emaPlus1Atr                  = ema + atr
+emaPlus2Atr                  = ema + (atr * 4)
+emaPlus3Atr                  = ema + (atr * 8)
+emaMinus1Atr                 = ema - atr
+emaMinus2Atr                 = ema - (atr * 4)
+emaMinus3Atr                 = ema - (atr * 8)
+
+Difference                   = math.abs((close - open)/((close + open)/2) * 100)
+DifferenceMovingAverage      = ta.sma(Difference, 14)
+rateOfChage                  = ta.roc(close, 14)
+
+
+//////////////////
+// CALCULATIONS SYMBOLS //
+
+// Get only symbol
+only_symbol(s) => 
+    array.get(str.split(s, ":"), 1)
+
+// for TSI
+double_smooth(src, long, short) =>
+	fist_smooth = ta.ema(src, long)
+	ta.ema(fist_smooth, short)
+
+// ADX
+dirmov(len) =>
+	up   =  ta.change(high)
+	down = -ta.change(low)
+	
+	plusDM  = na(up)   ? na : (up > down and up > 0   ? up   : 0)
+	minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+	
+	truerange = ta.rma(ta.tr, len)
+	
+	plus  = fixnan(100 * ta.rma(plusDM, len)  / truerange)
+	minus = fixnan(100 * ta.rma(minusDM, len) / truerange)
+	
+	[plus, minus]
+	
+adx_func(dilen, adxlen) =>
+	[plus, minus] = dirmov(dilen)
+	sum = plus + minus
+	adx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), adxlen)
+
+screener_func() =>
+    
+    // RSI
+    rsi_screener = ta.rsi(close, rsi_len)
+    
+    // TSI
+    pc = ta.change(close)
+
+    double_smoothed_pc     = double_smooth(pc,           tsi_long_len, tsi_shrt_len)
+    double_smoothed_abs_pc = double_smooth(math.abs(pc), tsi_long_len, tsi_shrt_len)
+    
+    tsi = 100 * (double_smoothed_pc / double_smoothed_abs_pc)
+    
+    // ADX 
+    adx = adx_func(adx_dilen, adx_smooth)
+    
+    // Supertrend
+    [sup_value, sup_dir] = ta.supertrend(sup_factor, sup_atr_len)
+    
+
+    // // **** Keltner Channels *****
+
+    length                       = input.int(20, minval=1)
+    mult                         = input(2.0, "Keltner Multiplier")
+    exp                          = input(true, "Use Exponential MA")
+    atrlength                    = input(10, "ATR Length ")
+
+    ma                           = ta.ema(close, length)
+    rangema                      = ta.atr(atrlength)
+    upperKeltner                 = ma + rangema * mult
+    lowerKeltner                 = ma - rangema * mult
+
+    [math.round_to_mintick(close), rsi_screener, tsi, adx, sup_dir, lowerKeltner]
+
+// ADX
+[diplus, diminus, adx]       = ta.dmi(lenDMI, lensigDMI)
+
+// HTF EMA
+ema7_1min                    = ta.ema(close, 7)
+emaSmooth7_1min              = request.security(syminfo.tickerid, res_HTF_EMA, ema7_1min, barmerge.gaps_on, barmerge.lookahead_off)
+emaStep7_1min                = request.security(syminfo.tickerid, res_HTF_EMA, ema7_1min, barmerge.gaps_off, barmerge.lookahead_off)
+
+// HTF EMA
+ema7_5min                    = ta.ema(close, 10)
+emaSmooth7_5min              = request.security(syminfo.tickerid, res_HTF_EMA5, ema7_5min, barmerge.gaps_on, barmerge.lookahead_off)
+emaStep7_5min                = request.security(syminfo.tickerid, res_HTF_EMA5, ema7_5min, barmerge.gaps_off, barmerge.lookahead_off)
+
+// HTF EMA
+ema7_15min                   = ta.ema(close, 7)
+emaSmooth7_15min             = request.security(syminfo.tickerid, res_HTF_EMA15, ema7_15min, barmerge.gaps_on, barmerge.lookahead_off)
+emaStep7_15min               = request.security(syminfo.tickerid, res_HTF_EMA15, ema7_15min, barmerge.gaps_off, barmerge.lookahead_off)
+
+//HTF close 1 min
+oneMinHighStep               = request.security(syminfo.tickerid, res1, high, barmerge.gaps_off, barmerge.lookahead_off)
+oneMinLowStep                = request.security(syminfo.tickerid, res1, low, barmerge.gaps_off, barmerge.lookahead_off)
+
+oneMinHighStep1              = request.security(syminfo.tickerid, res1, high[1], barmerge.gaps_off, barmerge.lookahead_off)
+oneMinLowStep1               = request.security(syminfo.tickerid, res1, low[1], barmerge.gaps_off, barmerge.lookahead_off)
+
+//HTF close 5 min
+fiveMinHighStep              = request.security(syminfo.tickerid, res2, high, barmerge.gaps_off, barmerge.lookahead_off)
+fiveMinLowStep               = request.security(syminfo.tickerid, res2, low, barmerge.gaps_off, barmerge.lookahead_off)
+
+//HTF close 5 min
+fiveMinHighStep1             = request.security(syminfo.tickerid, res2, high[1], barmerge.gaps_off, barmerge.lookahead_off)
+fiveMinLowStep1              = request.security(syminfo.tickerid, res2, low[1], barmerge.gaps_off, barmerge.lookahead_off)
+
+//HTF close 15 min
+fifteenMinHighStep           = request.security(syminfo.tickerid, res3, high, barmerge.gaps_off, barmerge.lookahead_off)
+fifteenMinLowStep            = request.security(syminfo.tickerid, res3, low, barmerge.gaps_off, barmerge.lookahead_off)
+
+// **** Fractals *****
+price                        = input(hl2,title='Price type to determine the last fractal top and the fractal breakout, the default is (high+low)/2')
+
+// fractal calculation 6 5 4 3 2 1 0
+
+fractal_top                  = high[6] < high[3] and high[5] < high[3] and high[4] < high[3] and high[3] > high[2] and high[3] > high[1] and high[3] > high[0]
+fractal_bottom               = low[6] > low[3] and low[5] > low[3] and low[4] > low[3] and low[3] < low[2] and low[3] < low[1] and low[3] < low[0]
+
+fractal_price_up             = ta.valuewhen(fractal_top, high, 1)
+fractal_price_down           = ta.valuewhen(fractal_bottom, low, 1)
+
+use_longer_average           = input(true,title='Use Fractal price average of the last 3 fractals instead of the last 2 fractals?')
+fractal_average_up           = (fractal_price_up[1] + fractal_price_up[2] + fractal_price_up[3] ) / 3
+fractal_average_down         = (fractal_price_down[1] + fractal_price_down[2] + fractal_price_down[3] ) / 3
+average_up_down              = (fractal_average_up + fractal_average_down) / 2
+
+fractal_trend                = fractal_average_up[0] > fractal_average_up[1]
+no_repainting                = input(true,title='Use the price of the last bar to prevent repainting?')
+fractal_breakout             = no_repainting?price[1] > fractal_price_up[0]:price[0] > fractal_price_up[0]
+
+// **** Fractals Average *****
+
+th                           = high[2]>high[1] and high[2]>high and high[2]>high[3] and high[2]>high[4] ? -1 : 0
+bl                           = low[2]<low[1] and low[2]<low and low[2]<low[3] and low[2]<low[4] ? 1 : 0
+
+tot                          = th + bl
+pl                           = math.abs(tot)>=1 ? 1 : 0
+
+lowline                      = (ta.valuewhen(tot==1, low[2], 0) + (LookBack>1 ? ta.valuewhen(tot==1, low[2], 1) : 0) +(LookBack>2 ? ta.valuewhen(tot==1, low[2], 2) : 0) + (LookBack>3 ? ta.valuewhen(tot==1, low[2], 3) : 0)+ (LookBack>4 ? ta.valuewhen(tot==1, low[2], 4) : 0) + (LookBack>5 ? ta.valuewhen(tot==1, low[2], 5) : 0)+ (LookBack>6 ? ta.valuewhen(tot==1, low[2], 6) : 0) + (LookBack>7 ? ta.valuewhen(tot==1, low[2], 7) : 0)+ (LookBack>8 ? ta.valuewhen(tot==1, low[2], 8) : 0) + (LookBack>9 ? ta.valuewhen(tot==1, low[2], 9) : 0))/LookBack
+highline                     = (ta.valuewhen(tot==-1, high[2], 0) + (LookBack>1 ? ta.valuewhen(tot==-1, high[2], 1) : 0)+ (LookBack>2 ? ta.valuewhen(tot==-1, high[2], 2) : 0) + (LookBack>3 ? ta.valuewhen(tot==-1, high[2], 3) : 0)+ (LookBack>4 ? ta.valuewhen(tot==-1, high[2], 4) : 0) + (LookBack>5 ? ta.valuewhen(tot==-1, high[2], 5) : 0)+ (LookBack>6 ? ta.valuewhen(tot==-1, high[2], 6) : 0) + (LookBack>7 ? ta.valuewhen(tot==-1, high[2], 7) : 0)+ (LookBack>8 ? ta.valuewhen(tot==-1, high[2], 8) : 0) + (LookBack>9 ? ta.valuewhen(tot==-1, high[2], 9) : 0))/LookBack
+MidLine                      = (highline+lowline)/2
+
+// **** Keltner Channels *****
+
+length                       = input.int(20, minval=1)
+mult                         = input(2.0, "Keltner Multiplier")
+exp                          = input(true, "Use Exponential MA")
+BandsStyle                   = input.string("Average True Range", options = ["Average True Range", "True Range", "Range"], title="Bands Style")
+atrlength                    = input(10, "ATR Length ")
+esma(source, length)=>
+	s = ta.sma(source, length)
+	e = ta.ema(source, length)
+	exp ? e : s
+ma                           = esma(src, length)
+rangema                      = BandsStyle == "True Range" ? ta.tr(true) : BandsStyle == "Average True Range" ? ta.atr(atrlength) : ta.rma(high - low, length)
+upperKeltner                 = ma + rangema * mult
+lowerKeltner                 = ma - rangema * mult
+
+// ***** computed trading conditions *****
+
+adx_positive                = diplus > diminus
+adx_negative                = diminus > diplus
+adx_trending                = adx > adxThreshold   
+rsi_up                      = rsi > 50
+rsi_down                    = rsi < 50
+
+atrSlow                     = ta.atr(14)
+
+barUp                       = open < close
+barDown                     = open > close
+
+barOverAtr                  = barUp and (close - open) > atrSlow
+barUnderAtr                 = barDown and (open - close) > atrSlow
+
+atrUpAndBull                = rsi_up and adx_positive and adx_trending and close > MidLine
+atrDownAndBear              = rsi_down and adx_negative and adx_trending and close < MidLine
+
+rocPositive                 = rateOfChage > 0.03    
+rocNegative                 = rateOfChage < -0.03
+
+long                        = atrUpAndBull and close > highline and upperKeltner > MidLine 
+short                       = atrDownAndBear and close < lowline and lowerKeltner < MidLine 
+
+// **** PLOTS ****
+
+// Keltner Channels
+u                            = plot(ShKelt ? upperKeltner : na, color=#2962FF, title="Upper")
+l                            = plot(ShKelt ? lowerKeltner : na, color=#2962FF, title="Lower")
+fill(u , l, color=color.rgb(33, 150, 243, 95), title="Background")
+
+// Fractals Average
+plot(ShMid ? lowline : na, linewidth=1, color=color.green, transp = 50)
+plot(ShMid ? highline : na, linewidth=1, color=color.red, transp = 50)
+plot(ShMid ? MidLine : na, linewidth=1, color = color.white, transp = 50 )
+
+plot(showRegularEMA? ema : na)
+
+plot(showAtrBands ? emaPlus1Atr : na , title="+1 ATR", color=color.rgb(44, 44, 48))
+plot(showAtrBands ? emaPlus2Atr : na , title="+2 ATR", color=color.rgb(63, 63, 68))
+plot(showAtrBands ? emaPlus3Atr : na , title="+3 ATR", color=color.rgb(44, 44, 48))
+plot(showAtrBands ? emaMinus1Atr : na , title="-1 ATR", color=color.rgb(44, 44, 48))
+plot(showAtrBands ? emaMinus2Atr : na , title="-2 ATR", color=color.rgb(44, 44, 48))
+plot(showAtrBands ? emaMinus3Atr : na , title="-3 ATR", color=color.rgb(44, 44, 48))
+
+plot(showHtfEMA ? emaStep7_1min : na , color=col_HTF_EMA ? close > emaStep7_1min ? color.green : color.red : color.black, style=plot.style_line, linewidth=1, title='EMA7 (HTF) 2')
+plot(showHtfEMA ? emaStep7_5min : na, color=col_HTF_EMA5 ? close > emaStep7_5min ? color.green : color.red : color.black, style=plot.style_line, linewidth=1, title='EMA7 (HTF) 2')
+plot(showHtfEMA ? emaStep7_15min : na, color=col_HTF_EMA15 ? close > emaStep7_15min ? color.green : color.red : color.black, style=plot.style_line, linewidth=1, title='EMA7 (HTF) 2')
+
+//
+// **** plot and show stuff *****
+//
+
+c_lineColor = long[1] ? color.new(color.green, 90) : short[1] ? color.new(color.maroon, 85) : na
+bgcolor(color=c_lineColor, title='Conditionally coloured bull')
+
+//* -------------------------------------------------------------------------- */
+//*                                  8.Panel                                   */
+//* -------------------------------------------------------------------------- */
+
+dashboardOffset = 30 * (time - time[1])
+splitter = '--------'
+newline = '\n'
+
+f_round(_val, _decimals) =>
+    if _decimals == -1
+        _val
+    else
+        _p = math.pow(10, _decimals)
+        math.round(math.abs(_val) * _p) / _p * math.sign(_val)
+
+f_strHelp(_prefix, _var, _round) =>
+    _res = str.tostring(f_round(_var, _round))
+    _prefix + ': ' + _res + newline
+
+f_print_dashboard(_txt) =>
+    var _lbl = label.new(bar_index, low, _txt, xloc.bar_index, yloc.price, #00000000, label.style_label_left, color.gray, size.large, text.align_left)
+    label.set_xy(_lbl, bar_index, ta.highest(10)[1])
+    label.set_text(_lbl, _txt)
+
+v100 = f_strHelp('atrForStopLoss', 0,  -2)
+v200 = ''
+v300 = f_strHelp('slInPercentage', 0,  -7)
+v400 = f_strHelp('slRounded', 0,  -7)
+v450 = ''
+v500 = f_strHelp('rateOfChage', rateOfChage,  3)
+v650 = ''
+
+test = v100 + v200 + v300 + v400 + v450 + v500 
+dynamicString = 'Dashboard:' + newline + splitter + newline + test + newline
+
+f_print_dashboard(showDash ? dynamicString : na)
+
+
+//* -------------------------------------------------------------------------- */
+//*                             9.Data Table                                   */
+//* -------------------------------------------------------------------------- */
+
+var string GP2 = "Display"
+string  tableYposInput = input.string("top", "Panel position", inline = "11", options = ["top", "middle", "bottom"], group = GP2)
+string  tableXposInput = input.string("right", "", inline = "11", options = ["left", "center", "right"], group = GP2)
+color   bullColorInput = input.color(color.new(color.green, 30), "Bull", inline = "12", group = GP2)
+color   bearColorInput = input.color(color.new(color.red, 30), "Bear", inline = "12", group = GP2)
+color   neutColorInput = input.color(color.new(color.gray, 30), "Neutral", inline = "12", group = GP2)
+color   white = input.color(color.new(color.white, 30), "Neutral", inline = "12", group = GP2)
+
+var string GP1 = "Moving averages"
+int     masQtyInput    = input.int(20, "Quantity", minval = 1, maxval = 40, group = GP1, tooltip = "1-40")
+
+var table panel = table.new(tableYposInput + "_" + tableXposInput, 2, masQtyInput + 1)
+if barstate.islast
+    // Table header.
+    table.cell(panel, 0, 0, "ROC % ", text_color = white)
+    table.cell(panel, 1, 0, f_strHelp('', rateOfChage,  3), text_color = white)
+
+    table.cell(panel, 0, 1, "test", text_color = white)
+    table.cell(panel, 1, 1, "value", text_color = white)
+
+    table.cell(panel, 0, 2, "ATR Aktuell", text_color = white)
+    table.cell(panel, 1, 2, "value", text_color = white)
+
+    table.cell(panel, 0, 3, "test", text_color = white)
+    table.cell(panel, 1, 3, "value", text_color = white)
+
+    table.cell(panel, 0, 4, "test", text_color = white)
+    table.cell(panel, 1, 4, "value", text_color = white)
+
+// Security call
+[cl01, rsi01, tsi01, adx01, sup01, l1] = request.security(s01, timeframe.period, screener_func())
+[cl02, rsi02, tsi02, adx02, sup02, l2] = request.security(s02, timeframe.period, screener_func())
+[cl03, rsi03, tsi03, adx03, sup03, l3] = request.security(s03, timeframe.period, screener_func())
+[cl04, rsi04, tsi04, adx04, sup04, l4] = request.security(s04, timeframe.period, screener_func())
+[cl05, rsi05, tsi05, adx05, sup05, l5] = request.security(s05, timeframe.period, screener_func())
+[cl06, rsi06, tsi06, adx06, sup06, l6] = request.security(s06, timeframe.period, screener_func())
+[cl07, rsi07, tsi07, adx07, sup07, l7] = request.security(s07, timeframe.period, screener_func())
+[cl08, rsi08, tsi08, adx08, sup08, l8] = request.security(s08, timeframe.period, screener_func())
+[cl09, rsi09, tsi09, adx09, sup09, l9] = request.security(s09, timeframe.period, screener_func())
+[cl10, rsi10, tsi10, adx10, sup10, l10] = request.security(s10, timeframe.period, screener_func())
+
+////////////
+// ARRAYS //
+s_arr   = array.new_string(0)
+u_arr   = array.new_bool(0)
+cl_arr  = array.new_float(0)
+rsi_arr = array.new_float(0)
+tsi_arr = array.new_float(0)
+adx_arr = array.new_float(0)
+sup_arr = array.new_float(0)
+kelt_arr = array.new_float(0)
+
+// Add Symbols 
+array.push(s_arr, only_symbol(s01))
+array.push(s_arr, only_symbol(s02))
+array.push(s_arr, only_symbol(s03))
+array.push(s_arr, only_symbol(s04))
+array.push(s_arr, only_symbol(s05))
+array.push(s_arr, only_symbol(s06))
+array.push(s_arr, only_symbol(s07))
+array.push(s_arr, only_symbol(s08))
+array.push(s_arr, only_symbol(s09))
+array.push(s_arr, only_symbol(s10))
+
+///////////
+// FLAGS //
+array.push(u_arr, u01)
+array.push(u_arr, u02)
+array.push(u_arr, u03)
+array.push(u_arr, u04)
+array.push(u_arr, u05)
+array.push(u_arr, u06)
+array.push(u_arr, u07)
+array.push(u_arr, u08)
+array.push(u_arr, u09)
+array.push(u_arr, u10)
+
+///////////
+// CLOSE /
+array.push(cl_arr, cl01)
+array.push(cl_arr, cl02)
+array.push(cl_arr, cl03)
+array.push(cl_arr, cl04)
+array.push(cl_arr, cl05)
+array.push(cl_arr, cl06)
+array.push(cl_arr, cl07)
+array.push(cl_arr, cl08)
+array.push(cl_arr, cl09)
+array.push(cl_arr, cl10)
+
+/////////
+// RSI //
+array.push(rsi_arr, rsi01)
+array.push(rsi_arr, rsi02)
+array.push(rsi_arr, rsi03)
+array.push(rsi_arr, rsi04)
+array.push(rsi_arr, rsi05)
+array.push(rsi_arr, rsi06)
+array.push(rsi_arr, rsi07)
+array.push(rsi_arr, rsi08)
+array.push(rsi_arr, rsi09)
+array.push(rsi_arr, rsi10)
+
+/////////
+// TSI //
+array.push(tsi_arr, tsi01)
+array.push(tsi_arr, tsi02)
+array.push(tsi_arr, tsi03)
+array.push(tsi_arr, tsi04)
+array.push(tsi_arr, tsi05)
+array.push(tsi_arr, tsi06)
+array.push(tsi_arr, tsi07)
+array.push(tsi_arr, tsi08)
+array.push(tsi_arr, tsi09)
+array.push(tsi_arr, tsi10)
+
+/////////
+// ADX //
+array.push(adx_arr, adx01)
+array.push(adx_arr, adx02)
+array.push(adx_arr, adx03)
+array.push(adx_arr, adx04)
+array.push(adx_arr, adx05)
+array.push(adx_arr, adx06)
+array.push(adx_arr, adx07)
+array.push(adx_arr, adx08)
+array.push(adx_arr, adx09)
+array.push(adx_arr, adx10)
+
+////////////////
+// SUPERTREND //
+array.push(sup_arr, sup01)
+array.push(sup_arr, sup02)
+array.push(sup_arr, sup03)
+array.push(sup_arr, sup04)
+array.push(sup_arr, sup05)
+array.push(sup_arr, sup06)
+array.push(sup_arr, sup07)
+array.push(sup_arr, sup08)
+array.push(sup_arr, sup09)
+array.push(sup_arr, sup10)
+
+////////////////
+// Keltner //
+array.push(kelt_arr, l1)
+array.push(kelt_arr, l2)
+array.push(kelt_arr, l3)
+array.push(kelt_arr, l4)
+array.push(kelt_arr, l5)
+array.push(kelt_arr, l6)
+array.push(kelt_arr, l7)
+array.push(kelt_arr, l8)
+array.push(kelt_arr, l9)
+array.push(kelt_arr, l10)
+
+///////////
+// PLOTS //
+
+var tbl = table.new(position.top_right, 7, 41, frame_color=#151715, frame_width=1, border_width=2, border_color=color.new(color.white, 100))
+
+if barstate.islast
+
+    table.cell(tbl, 0, 0, 'Symbol',     text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.small)
+    table.cell(tbl, 1, 0, 'Price',      text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.small)
+    table.cell(tbl, 2, 0, 'RSI',        text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.small)
+    table.cell(tbl, 3, 0, 'TSI',        text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.small)
+    table.cell(tbl, 4, 0, 'ADX',        text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.small)
+    table.cell(tbl, 5, 0, 'Supertrend', text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.small)
+    table.cell(tbl, 6, 0, 'keltner',    text_halign = text.align_center, bgcolor = color.gray, text_color = color.white, text_size = size.small)
+
+    for i = 0 to 9
+        if array.get(u_arr, i)
+        
+            rsi_col  = array.get(rsi_arr, i) > rsi_ob    ? color.red   : array.get(rsi_arr, i) < rsi_os ? color.green : #aaaaaa 
+            tsi_col  = array.get(tsi_arr, i) > tsi_ob    ? color.red   : array.get(tsi_arr, i) < tsi_os ? color.green : #aaaaaa  
+            adx_col  = array.get(adx_arr, i) > adx_level ? color.green : #aaaaaa 
+        
+            sup_text = array.get(sup_arr, i) > 0 ? "Down"      : "Up"
+            sup_col  = array.get(sup_arr, i) > 0 ? color.green : color.red
+
+            table.cell(tbl, 0, i + 1, array.get(s_arr, i),                                 text_halign = text.align_left,   bgcolor = color.gray, text_color = color.white, text_size = size.small)
+            table.cell(tbl, 1, i + 1, str.tostring(array.get(cl_arr, i)),                  text_halign = text.align_center, bgcolor = #aaaaaa,    text_color = color.white, text_size = size.small)
+            table.cell(tbl, 2, i + 1, str.tostring(array.get(rsi_arr, i), "#.##"),         text_halign = text.align_center, bgcolor = rsi_col,    text_color = color.white, text_size = size.small)
+            table.cell(tbl, 3, i + 1, str.tostring(array.get(tsi_arr, i), "#.##"),         text_halign = text.align_center, bgcolor = tsi_col,    text_color = color.white, text_size = size.small)
+            table.cell(tbl, 4, i + 1, str.tostring(array.get(adx_arr, i), "#.##"),         text_halign = text.align_center, bgcolor = adx_col   , text_color = color.white, text_size = size.small)
+            table.cell(tbl, 5, i + 1, sup_text,                                            text_halign = text.align_center, bgcolor = sup_col,    text_color = color.white, text_size = size.small)
+            table.cell(tbl, 6, i + 1, str.tostring(array.get(kelt_arr, i)),                  text_halign = text.align_center, bgcolor = #aaaaaa,    text_color = color.white, text_size = size.small)
+
+
+
+// buy and sell conditions
+buy = long[1]
+sell = short[1]
+
+plotshape(buy, title='LONG SIGNAL', style=shape.circle, location=location.belowbar, color=color.new(color.green, 0), size=size.tiny)
+plotshape(sell, title='SHORT SIGNAL', style=shape.circle, location=location.abovebar, color=color.new(color.red, 0), size=size.tiny)
+
+/////////////////////////// SIGNAL FOR STRATEGY /////////////////////////
+
+Signal = buy ? 1 : sell ? -1 : 0
+plot(Signal, title='🔌Connector🔌', display = display.data_window)
